@@ -1,6 +1,8 @@
 package com.ecommerce.user_service.auth;
 
 import com.ecommerce.user_service.auth.dto.AuthResponse;
+import com.ecommerce.user_service.auth.dto.ClientCredentialsRequest;
+import com.ecommerce.user_service.auth.dto.ClientTokenResponse;
 import com.ecommerce.user_service.auth.dto.LoginRequest;
 import com.ecommerce.user_service.auth.dto.SignupRequest;
 import jakarta.validation.Valid;
@@ -16,9 +18,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
 	private final AuthService authService;
+	private final ClientAuthenticationService clientAuthenticationService;
 
-	public AuthController(AuthService authService) {
+	public AuthController(AuthService authService, ClientAuthenticationService clientAuthenticationService) {
 		this.authService = authService;
+		this.clientAuthenticationService = clientAuthenticationService;
 	}
 
 	@PostMapping("/signup")
@@ -29,5 +33,10 @@ public class AuthController {
 	@PostMapping("/login")
 	public AuthResponse login(@Valid @RequestBody LoginRequest request) {
 		return authService.login(request);
+	}
+
+	@PostMapping("/client-token")
+	public ClientTokenResponse clientToken(@Valid @RequestBody ClientCredentialsRequest request) {
+		return clientAuthenticationService.authenticate(request);
 	}
 }

@@ -2,126 +2,164 @@ package com.ecommerce.user_service.auth;
 
 import com.ecommerce.user_service.user.User;
 import com.ecommerce.user_service.user.UserRole;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.proc.SecurityContext;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.Signature;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.UUID;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
 public class JwtService {
 
-	private static final Base64.Encoder BASE64_URL_ENCODER = Base64.getUrlEncoder().withoutPadding();
-	private static final Base64.Decoder BASE64_URL_DECODER = Base64.getUrlDecoder();
+	private static final String TOKEN_USE_USER = "user";
+	private static final String TOKEN_USE_CLIENT_CREDENTIALS = "client_credentials";
 
 	private final JwtProperties properties;
-	private final ObjectMapper objectMapper;
-	private final PrivateKey privateKey;
-	private final PublicKey publicKey;
+	private final JwtEncoder jwtEncoder;
+	private final JwtDecoder jwtDecoder;
 
-	public JwtService(JwtProperties properties, ObjectMapper objectMapper) throws IOException, GeneralSecurityException {
+	public JwtService(JwtProperties properties) throws IOException, GeneralSecurityException {
 		this.properties = properties;
-		this.objectMapper = objectMapper;
-		this.privateKey = loadPrivateKey(properties);
-		this.publicKey = loadPublicKey(properties);
+		RSAPrivateKey privateKey = loadPrivateKey(properties);
+		RSAPublicKey publicKey = loadPublicKey(properties);
+		this.jwtEncoder = createJwtEncoder(publicKey, privateKey);
+		this.jwtDecoder = NimbusJwtDecoder.withPublicKey(publicKey).build();
 	}
 
 	public TokenDetails generateAccessToken(User user) {
 		Instant now = Instant.now();
 		Instant expiresAt = now.plus(properties.getAccessTokenTtl());
-		Map<String, Object> header = new LinkedHashMap<>();
-		header.put("alg", "RS256");
-		header.put("typ", "JWT");
+		JwtClaimsSet claims = JwtClaimsSet.builder()
+				.issuer(properties.getIssuer())
+				.subject(user.getEmail())
+				.issuedAt(now)
+				.expiresAt(expiresAt)
+				.claim("tokenUse", TOKEN_USE_USER)
+				.claim("userId", user.getId().toString())
+				.claim("email", user.getEmail())
+				.claim("role", user.getRole().name())
+				.claim("authorities", List.of(user.getRole().name()))
+				.build();
 
-		Map<String, Object> payload = new LinkedHashMap<>();
-		payload.put("iss", properties.getIssuer());
-		payload.put("sub", user.getEmail());
-		payload.put("userId", user.getId().toString());
-		payload.put("email", user.getEmail());
-		payload.put("role", user.getRole().name());
-		payload.put("iat", now.getEpochSecond());
-		payload.put("exp", expiresAt.getEpochSecond());
+		return encode(claims, expiresAt);
+	}
 
-		try {
-			String encodedHeader = encodeJson(header);
-			String encodedPayload = encodeJson(payload);
-			String unsignedToken = encodedHeader + "." + encodedPayload;
-			return new TokenDetails(unsignedToken + "." + sign(unsignedToken), expiresAt);
-		}
-		catch (IOException | GeneralSecurityException ex) {
-			throw new IllegalStateException("Unable to generate JWT access token", ex);
-		}
+	public TokenDetails generateClientCredentialsToken(String clientId, List<String> authorities) {
+		Instant now = Instant.now();
+		Instant expiresAt = now.plus(properties.getAccessTokenTtl());
+		JwtClaimsSet claims = JwtClaimsSet.builder()
+				.issuer(properties.getIssuer())
+				.subject(clientId)
+				.issuedAt(now)
+				.expiresAt(expiresAt)
+				.claim("tokenUse", TOKEN_USE_CLIENT_CREDENTIALS)
+				.claim("clientId", clientId)
+				.claim("authorities", authorities)
+				.build();
+
+		return encode(claims, expiresAt);
+	}
+
+	private TokenDetails encode(JwtClaimsSet claims, Instant expiresAt) {
+		JwsHeader headers = JwsHeader.with(SignatureAlgorithm.RS256).type("JWT").build();
+		Jwt jwt = jwtEncoder.encode(JwtEncoderParameters.from(headers, claims));
+		return new TokenDetails(jwt.getTokenValue(), expiresAt);
 	}
 
 	public JwtClaims parseAndValidate(String token) {
 		try {
-			String[] tokenParts = token.split("\\.");
-			if (tokenParts.length != 3 || !verify(tokenParts[0] + "." + tokenParts[1], tokenParts[2])) {
-				throw new IllegalArgumentException("Invalid JWT token");
-			}
-
-			Map<String, Object> payload = objectMapper.readValue(
-					BASE64_URL_DECODER.decode(tokenParts[1]),
-					new TypeReference<>() {
-					});
-			if (!properties.getIssuer().equals(payload.get("iss"))) {
+			Jwt jwt = jwtDecoder.decode(token);
+			if (!properties.getIssuer().equals(jwt.getIssuer().toString())) {
 				throw new IllegalArgumentException("Invalid JWT issuer");
 			}
 
-			Instant expiresAt = Instant.ofEpochSecond(((Number) payload.get("exp")).longValue());
+			Instant expiresAt = jwt.getExpiresAt();
+			if (expiresAt == null) {
+				throw new IllegalArgumentException("JWT token has no expiry");
+			}
 			if (expiresAt.isBefore(Instant.now())) {
 				throw new IllegalArgumentException("JWT token has expired");
 			}
 
+			String tokenUse = jwt.getClaimAsString("tokenUse");
+			List<String> authorities = readAuthorities(jwt);
+			if (TOKEN_USE_CLIENT_CREDENTIALS.equals(tokenUse)) {
+				return new JwtClaims(
+						null,
+						jwt.getSubject(),
+						null,
+						null,
+						authorities,
+						true,
+						expiresAt);
+			}
+
+			UserRole role = UserRole.valueOf(jwt.getClaimAsString("role"));
 			return new JwtClaims(
-					UUID.fromString((String) payload.get("userId")),
-					(String) payload.get("email"),
-					UserRole.valueOf((String) payload.get("role")),
+					UUID.fromString(jwt.getClaimAsString("userId")),
+					jwt.getSubject(),
+					jwt.getClaimAsString("email"),
+					role,
+					authorities.isEmpty() ? List.of(role.name()) : authorities,
+					false,
 					expiresAt);
 		}
-		catch (IOException | GeneralSecurityException | RuntimeException ex) {
+		catch (RuntimeException ex) {
 			throw new IllegalArgumentException("Invalid JWT token", ex);
 		}
 	}
 
-	private String encodeJson(Map<String, Object> value) throws IOException {
-		return BASE64_URL_ENCODER.encodeToString(objectMapper.writeValueAsBytes(value));
+	private List<String> readAuthorities(Jwt jwt) {
+		Object authorities = jwt.getClaims().get("authorities");
+		if (!(authorities instanceof List<?> authorityValues)) {
+			return List.of();
+		}
+		return authorityValues.stream()
+				.filter(String.class::isInstance)
+				.map(String.class::cast)
+				.toList();
 	}
 
-	private String sign(String unsignedToken) throws GeneralSecurityException {
-		Signature signature = Signature.getInstance("SHA256withRSA");
-		signature.initSign(privateKey);
-		signature.update(unsignedToken.getBytes(StandardCharsets.UTF_8));
-		return BASE64_URL_ENCODER.encodeToString(signature.sign());
+	private JwtEncoder createJwtEncoder(RSAPublicKey publicKey, RSAPrivateKey privateKey) {
+		RSAKey rsaKey = new RSAKey.Builder(publicKey).privateKey(privateKey).build();
+		JWKSource<SecurityContext> jwkSource = new ImmutableJWKSet<>(new JWKSet(rsaKey));
+		return new NimbusJwtEncoder(jwkSource);
 	}
 
-	private boolean verify(String unsignedToken, String encodedSignature) throws GeneralSecurityException {
-		Signature signature = Signature.getInstance("SHA256withRSA");
-		signature.initVerify(publicKey);
-		signature.update(unsignedToken.getBytes(StandardCharsets.UTF_8));
-		return signature.verify(BASE64_URL_DECODER.decode(encodedSignature));
-	}
-
-	private PrivateKey loadPrivateKey(JwtProperties properties) throws IOException, GeneralSecurityException {
+	private RSAPrivateKey loadPrivateKey(JwtProperties properties) throws IOException, GeneralSecurityException {
 		byte[] keyBytes = readPem(properties.getPrivateKeyLocation().getContentAsString(StandardCharsets.UTF_8));
-		return KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
+		PrivateKey privateKey = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
+		return (RSAPrivateKey) privateKey;
 	}
 
-	private PublicKey loadPublicKey(JwtProperties properties) throws IOException, GeneralSecurityException {
+	private RSAPublicKey loadPublicKey(JwtProperties properties) throws IOException, GeneralSecurityException {
 		byte[] keyBytes = readPem(properties.getPublicKeyLocation().getContentAsString(StandardCharsets.UTF_8));
-		return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(keyBytes));
+		PublicKey publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(keyBytes));
+		return (RSAPublicKey) publicKey;
 	}
 
 	private byte[] readPem(String pem) {

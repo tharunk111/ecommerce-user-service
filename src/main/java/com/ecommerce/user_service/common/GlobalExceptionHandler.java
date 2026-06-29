@@ -2,6 +2,7 @@ package com.ecommerce.user_service.common;
 
 import com.ecommerce.user_service.auth.exception.AccountNotActiveException;
 import com.ecommerce.user_service.auth.exception.DuplicateResourceException;
+import com.ecommerce.user_service.auth.exception.InvalidClientCredentialsException;
 import com.ecommerce.user_service.auth.exception.InvalidCredentialsException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.LinkedHashMap;
@@ -26,6 +27,13 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(InvalidCredentialsException.class)
 	public ResponseEntity<ErrorResponse> handleInvalidCredentials(
 			InvalidCredentialsException ex,
+			HttpServletRequest request) {
+		return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), request);
+	}
+
+	@ExceptionHandler(InvalidClientCredentialsException.class)
+	public ResponseEntity<ErrorResponse> handleInvalidClientCredentials(
+			InvalidClientCredentialsException ex,
 			HttpServletRequest request) {
 		return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), request);
 	}

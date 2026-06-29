@@ -41,6 +41,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 		try {
 			JwtClaims claims = jwtService.parseAndValidate(authorizationHeader.substring(7));
+			if (claims.clientCredentials()) {
+				AuthenticatedClient principal = new AuthenticatedClient(claims.subject(), claims.authorities());
+				UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+						principal,
+						null,
+						claims.authorities().stream().map(SimpleGrantedAuthority::new).toList());
+				SecurityContextHolder.getContext().setAuthentication(authentication);
+				filterChain.doFilter(request, response);
+				return;
+			}
+
 			userRepository.findById(claims.userId())
 					.filter(user -> user.getStatus() == AccountStatus.ACTIVE)
 					.ifPresent(user -> {
