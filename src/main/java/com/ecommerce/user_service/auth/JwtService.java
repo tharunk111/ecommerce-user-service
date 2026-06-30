@@ -20,6 +20,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -31,6 +32,8 @@ import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.stereotype.Service;
+
+import javax.swing.text.Utilities;
 
 @Service
 public class JwtService {
@@ -93,7 +96,7 @@ public class JwtService {
 	public JwtClaims parseAndValidate(String token) {
 		try {
 			Jwt jwt = jwtDecoder.decode(token);
-			if (!properties.getIssuer().equals(jwt.getIssuer().toString())) {
+			if (!properties.getIssuer().equals(jwt.getClaimAsString("iss"))) {
 				throw new IllegalArgumentException("Invalid JWT issuer");
 			}
 
