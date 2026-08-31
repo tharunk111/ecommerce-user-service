@@ -35,6 +35,7 @@ public class SecurityConfig {
 								"/api/v1/auth/signup",
 								"/api/v1/auth/login",
 								"/api/v1/auth/client-token").permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/v1/connectivity/**").permitAll()
 						.requestMatchers("/actuator/health", "/actuator/info").permitAll()
 						.anyRequest().authenticated())
 				.exceptionHandling(exceptions -> exceptions.authenticationEntryPoint((request, response, authException) ->
