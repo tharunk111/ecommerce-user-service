@@ -40,7 +40,7 @@ public class UserManagementService {
 		return UserResponse.from(userRepository.save(user));
 	}
 
-	@PreAuthorize("hasAuthority('ROLE_SUPPORT_AGENT','ROLE_SERVICE_CLIENT')")
+	@PreAuthorize("hasAnyAuthority('ROLE_SUPPORT_AGENT','ROLE_SERVICE_CLIENT')")
 	@Transactional(readOnly = true)
 	public List<UserResponse> getAllCustomers() {
 		return userRepository.findAllByRoleOrderByCreatedAtDesc(UserRole.ROLE_CUSTOMER).stream()
