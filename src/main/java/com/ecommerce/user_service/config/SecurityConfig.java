@@ -32,9 +32,9 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(
 								HttpMethod.POST,
-								"/api/v1/auth/signup",
-								"/api/v1/auth/login",
-								"/api/v1/auth/client-token").permitAll()
+								"/api/v1/users/auth/signup",
+								"/api/v1/users/auth/login",
+								"/api/v1/users/auth/client-token").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/v1/connectivity/**").permitAll()
 						.requestMatchers("/actuator/health", "/actuator/info").permitAll()
 						.anyRequest().authenticated())
