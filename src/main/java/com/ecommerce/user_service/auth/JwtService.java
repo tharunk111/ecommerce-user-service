@@ -1,6 +1,6 @@
 package com.ecommerce.user_service.auth;
 
-import com.ecommerce.user_service.user.User;
+import com.ecommerce.user_service.entities.User;
 import com.ecommerce.user_service.user.UserRole;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;

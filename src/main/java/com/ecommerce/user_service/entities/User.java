@@ -1,5 +1,7 @@
-package com.ecommerce.user_service.user;
+package com.ecommerce.user_service.entities;
 
+import com.ecommerce.user_service.user.AccountStatus;
+import com.ecommerce.user_service.user.UserRole;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

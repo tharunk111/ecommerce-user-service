@@ -2,6 +2,7 @@ package com.ecommerce.user_service.user;
 
 import com.ecommerce.user_service.auth.dto.UserResponse;
 import com.ecommerce.user_service.auth.exception.DuplicateResourceException;
+import com.ecommerce.user_service.entities.User;
 import com.ecommerce.user_service.user.dto.SupportAgentRequest;
 import java.util.List;
 import java.util.Locale;

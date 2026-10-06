@@ -1,7 +1,7 @@
 package com.ecommerce.user_service.auth.dto;
 
 import com.ecommerce.user_service.user.AccountStatus;
-import com.ecommerce.user_service.user.User;
+import com.ecommerce.user_service.entities.User;
 import com.ecommerce.user_service.user.UserRole;
 import java.time.Instant;
 import java.util.UUID;

@@ -8,7 +8,7 @@ import com.ecommerce.user_service.auth.exception.AccountNotActiveException;
 import com.ecommerce.user_service.auth.exception.DuplicateResourceException;
 import com.ecommerce.user_service.auth.exception.InvalidCredentialsException;
 import com.ecommerce.user_service.user.AccountStatus;
-import com.ecommerce.user_service.user.User;
+import com.ecommerce.user_service.entities.User;
 import com.ecommerce.user_service.user.UserRepository;
 import java.util.Locale;
 import org.springframework.security.crypto.password.PasswordEncoder;
